@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
 """
-simplerVersion.py - Simplified Markov Model for DNA Sequences
-
-This script trains a Markov model of order m on DNA sequences from a FASTA file
-and outputs the log-likelihood score for each sequence.
-
-Educational Purpose: This demonstrates the core concepts of:
-1. Markov models for sequence analysis
-2. K-mer counting for probability estimation
-3. Log-likelihood scoring
-
-Author: JATIN RAGHUWANHSI
-Course: Computational Functional Genomics, Jan sem 2026
+Simplified Markov Model for DNA Sequences
+Trains a model and scores sequences from a FASTA file
 """
 
 import argparse
@@ -20,300 +10,214 @@ from collections import defaultdict
 import math
 
 
-def parse_arguments():
-    """
-    Parse command-line arguments for the script.
-    
-    Returns:
-        argparse.Namespace: Parsed arguments containing fasta path and model order
-    """
-    parser = argparse.ArgumentParser(
-        description='Train a Markov model and score DNA sequences',
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    
-    parser.add_argument(
-        '--fasta',
-        type=str,
-        required=True,
-        help='Path to FASTA file containing DNA sequences (e.g., data/sequences.fasta)'
-    )
-    
-    parser.add_argument(
-        '--order',
-        type=int,
-        required=True,
-        help='Order m of the Markov model (0 for independent positions, 1+ for dependencies)'
-    )
-    
+def parse_args():
+    parser = argparse.ArgumentParser(description='Markov model for DNA')
+    parser.add_argument('--fasta', type=str, required=True, help='FASTA file path')
+    parser.add_argument('--order', type=int, required=True, help='Model order (m)')
     return parser.parse_args()
 
 
-def read_fasta(fasta_path):
-    """
-    Read sequences from a FASTA file.
-    
-    FASTA format consists of:
-    - Header line starting with '>' (sequence identifier)
-    - One or more lines of sequence data
-    
-    Args:
-        fasta_path (str): Path to the FASTA file
-        
-    Returns:
-        list: List of tuples (header, sequence) where sequences are uppercase
-        
-    Raises:
-        FileNotFoundError: If the FASTA file doesn't exist
-    """
-    sequences = []
-    current_header = None
-    current_sequence = []
+def read_fasta_file(filename):
+    """Read sequences from FASTA format"""
+    seqs = []
+    header = None
+    seq = []
     
     try:
-        with open(fasta_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                
-                # Skip empty lines
-                if not line:
-                    continue
-                
-                # Header line (starts with '>')
-                if line.startswith('>'):
-                    # Save previous sequence if it exists
-                    if current_header is not None:
-                        sequences.append((current_header, ''.join(current_sequence).upper()))
-                    
-                    # Start new sequence
-                    current_header = line[1:]  # Remove '>' character
-                    current_sequence = []
-                else:
-                    # Sequence line
-                    current_sequence.append(line)
+        f = open(filename, 'r')
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
             
-            # Don't forget the last sequence
-            if current_header is not None:
-                sequences.append((current_header, ''.join(current_sequence).upper()))
+            if line.startswith('>'):
+                # save previous sequence
+                if header is not None:
+                    full_seq = ''.join(seq)
+                    seqs.append((header, full_seq.upper()))
                 
+                header = line[1:]
+                seq = []
+            else:
+                seq.append(line)
+        
+        # don't forget last one
+        if header is not None:
+            full_seq = ''.join(seq)
+            seqs.append((header, full_seq.upper()))
+        
+        f.close()
+        
     except FileNotFoundError:
-        print(f"Error: FASTA file '{fasta_path}' not found.", file=sys.stderr)
-        print("Please check the file path and try again.", file=sys.stderr)
+        print(f"Error: Can't find file {filename}", file=sys.stderr)
         sys.exit(1)
     
-    return sequences
+    return seqs
 
 
-def filter_sequences_with_n(sequences):
-    """
-    Filter out sequences containing 'N' characters.
-    
-    According to project rules, we must remove sequences with 'N' 
-    (which represent ambiguous or unknown nucleotides).
-    
-    Args:
-        sequences (list): List of (header, sequence) tuples
-        
-    Returns:
-        list: Filtered list containing only sequences without 'N'
-    """
-    filtered = []
-    removed_count = 0
+def remove_sequences_with_N(sequences):
+    """Filter out any sequences that have N in them"""
+    clean_seqs = []
     
     for header, seq in sequences:
-        if 'N' not in seq:
-            filtered.append((header, seq))
-        else:
-            removed_count += 1
-    
-   # if removed_count > 0:
-   #    print(f"# Removed {removed_count} sequence(s) containing 'N' characters", 
-   #          file=sys.stderr)
-    
-    return filtered
-
-
-def count_kmers(sequences, k):
-    """
-    Count all k-mers across all sequences.
-    
-    A k-mer is a substring of length k. For example, in "ACGT":
-    - 1-mers: A, C, G, T
-    - 2-mers: AC, CG, GT
-    - 3-mers: ACG, CGT
-    
-    Args:
-        sequences (list): List of (header, sequence) tuples
-        k (int): Length of k-mers to count
+        # check if N is in the sequence
+        has_n = False
+        for char in seq:
+            if char == 'N':
+                has_n = True
+                break
         
-    Returns:
-        defaultdict: Dictionary mapping k-mer -> count
-    """
-    kmer_counts = defaultdict(int)
+        if not has_n:
+            clean_seqs.append((header, seq))
     
+    return clean_seqs
+
+
+def count_all_kmers(sequences, k):
+    """Count kmers of length k across all sequences"""
+    counts = defaultdict(int)
+    
+    # go through each sequence
     for header, seq in sequences:
-        # Slide a window of size k across the sequence
+        # slide window across sequence
         for i in range(len(seq) - k + 1):
             kmer = seq[i:i+k]
-            kmer_counts[kmer] += 1
+            counts[kmer] += 1
     
-    return kmer_counts
+    return counts
 
 
-def train_markov_model(sequences, order):
+def build_markov_model(sequences, m):
     """
-    Train a Markov model of given order on the sequences.
-    
-    MARKOV MODEL EXPLANATION:
-    - Order 0: Each position is independent (simple nucleotide frequencies)
-    - Order m: Current nucleotide depends on previous m nucleotides
-    
-    We model P(nucleotide | context), where context is the previous m nucleotides.
-    
-    IMPLEMENTATION:
-    For order m, we need:
-    1. Counts of (m+1)-mers: these represent transitions
-       Example (m=1): "AC" means "seeing C after A"
-    2. Counts of m-mers: these represent contexts
-       Example (m=1): "A" is the context
-    
-    Then: P(C|A) = count("AC") / count("A")
-    
-    Args:
-        sequences (list): List of (header, sequence) tuples
-        order (int): Order of the Markov model
-        
-    Returns:
-        tuple: (transition_probs, context_counts)
-            - transition_probs: dict mapping (m+1)-mer -> log probability
-            - context_counts: dict mapping m-mer -> count
+    Build markov model of order m
+    For order m, we need to count (m+1)-mers and m-mers
+    Then calculate probabilities
     """
-    # Count (m+1)-mers for transitions
-    # Example: if order=1, we count 2-mers like "AC", "CG", etc.
-    transition_counts = count_kmers(sequences, order + 1)
     
-    # Count m-mers for contexts (background)
-    # Example: if order=1, we count 1-mers like "A", "C", "G", "T"
-    context_counts = count_kmers(sequences, order) if order > 0 else None
+    # count the (m+1)-mers - these are our transitions
+    transition_counts = count_all_kmers(sequences, m + 1)
     
-    # Calculate transition probabilities
-    # We store log probabilities to avoid numerical underflow
-    transition_probs = {}
-    
-    if order == 0:
-        # Order 0: Independent positions, just nucleotide frequencies
-        total = sum(transition_counts.values())
-        for nucleotide, count in transition_counts.items():
-            # Add pseudocount of 1 to avoid zero probabilities (Laplace smoothing)
-            prob = (count + 1) / (total + 4)  # 4 possible nucleotides
-            transition_probs[nucleotide] = math.log(prob)
+    # count the m-mers - these are our contexts
+    if m > 0:
+        context_counts = count_all_kmers(sequences, m)
     else:
-        # Order m > 0: Conditional probabilities
-        for transition, count in transition_counts.items():
-            context = transition[:order]  # First m characters
-            
-            # P(transition | context) = count(transition) / count(context)
-            # Add pseudocount of 1 for Laplace smoothing
-            context_count = context_counts.get(context, 0)
-            prob = (count + 1) / (context_count + 4)  # 4 possible next nucleotides
-            
-            transition_probs[transition] = math.log(prob)
+        context_counts = None
     
-    return transition_probs, context_counts
-
-
-def score_sequence(sequence, order, transition_probs, context_counts):
-    """
-    Calculate the log-likelihood score for a sequence under the Markov model.
+    # now calculate probabilities
+    # we'll store them as log probabilities
+    probs = {}
     
-    LOG-LIKELIHOOD EXPLANATION:
-    - We want to calculate P(sequence | model)
-    - For a sequence s = s₁s₂...sₙ:
-      * Order 0: log P(s) = Σᵢ log P(sᵢ)
-      * Order m: log P(s) = Σᵢ log P(sᵢ | sᵢ₋ₘ...sᵢ₋₁)
-    
-    - Higher scores indicate the sequence is more likely under the model
-    - Log-likelihood avoids numerical underflow from multiplying many small probabilities
-    
-    Args:
-        sequence (str): DNA sequence to score
-        order (int): Order of the Markov model
-        transition_probs (dict): Log probabilities from training
-        context_counts (dict): Context counts from training (for order > 0)
+    if m == 0:
+        # order 0 is simple - just nucleotide frequencies
+        total_count = 0
+        for nuc in transition_counts:
+            total_count += transition_counts[nuc]
         
-    Returns:
-        float: Log-likelihood score for the sequence
-    """
-    log_likelihood = 0.0
-    
-    if order == 0:
-        # Order 0: Sum log probabilities of individual nucleotides
-        for nucleotide in sequence:
-            if nucleotide in transition_probs:
-                log_likelihood += transition_probs[nucleotide]
-            else:
-                # Unseen nucleotide: use small probability (pseudocount only)
-                log_likelihood += math.log(1 / (sum(1 for k in transition_probs) + 4))
+        # calculate probability for each nucleotide
+        for nuc in transition_counts:
+            count = transition_counts[nuc]
+            # add 1 for pseudocount (laplace smoothing)
+            prob = (count + 1) / (total_count + 4)
+            probs[nuc] = math.log(prob)
     
     else:
-        # Order m > 0: Use context-dependent probabilities
-        # Note: First m positions need special handling
-        
-        # For the first m positions, use lower-order models or uniform distribution
-        # Here, we use a simple approximation: score them with pseudocount probability
-        for i in range(min(order, len(sequence))):
-            log_likelihood += math.log(0.25)  # Uniform probability for first m positions
-        
-        # Score the rest of the sequence using the m-th order model
-        for i in range(order, len(sequence)):
-            context = sequence[i-order:i]  # Previous m nucleotides
-            transition = sequence[i-order:i+1]  # Context + current nucleotide
+        # order m > 0
+        # probability is count(transition) / count(context)
+        for transition in transition_counts:
+            count = transition_counts[transition]
             
-            if transition in transition_probs:
-                log_likelihood += transition_probs[transition]
+            # get the context (first m characters)
+            context = transition[:m]
+            
+            # get context count
+            if context in context_counts:
+                ctx_count = context_counts[context]
             else:
-                # Unseen transition: use pseudocount probability
-                context_count = context_counts.get(context, 0) if context_counts else 0
-                prob = 1 / (context_count + 4)
-                log_likelihood += math.log(prob)
+                ctx_count = 0
+            
+            # calculate probability with pseudocount
+            prob = (count + 1) / (ctx_count + 4)
+            probs[transition] = math.log(prob)
     
-    return log_likelihood
+    return probs, context_counts
 
+
+def score_seq(seq, m, model_probs, context_counts):
+    """
+    Score a sequence using the markov model
+    Returns log likelihood
+    """
+    score = 0.0
+    
+    if m == 0:
+        # order 0: just add up nucleotide probabilities
+        for base in seq:
+            if base in model_probs:
+                score += model_probs[base]
+            else:
+                # unseen nucleotide - use small probability
+                num_nucs = len(model_probs)
+                score += math.log(1.0 / (num_nucs + 4))
+    
+    else:
+        # order m: need to handle first m positions differently
+        
+        # for first m positions, use uniform probability
+        for i in range(min(m, len(seq))):
+            score += math.log(0.25)
+        
+        # now score the rest
+        for i in range(m, len(seq)):
+            # get context (previous m bases)
+            context = seq[i-m:i]
+            # get transition (context + current base)
+            transition = seq[i-m:i+1]
+            
+            if transition in model_probs:
+                score += model_probs[transition]
+            else:
+                # unseen transition - use pseudocount
+                if context_counts and context in context_counts:
+                    ctx_count = context_counts[context]
+                else:
+                    ctx_count = 0
+                prob = 1.0 / (ctx_count + 4)
+                score += math.log(prob)
+    
+    return score
 
 
 def main():
-    """
-    Main function: orchestrates the entire workflow.
-    """
-    # 1. Parse arguments
-    args = parse_arguments()
+    # get command line arguments
+    args = parse_args()
     
-    # Validate order
+    # check that order is valid
     if args.order < 0:
-        # Keeping error prints is usually okay, but let's exit cleanly
+        print(f"Error: order must be >= 0", file=sys.stderr)
         sys.exit(1)
     
-    # 2. Read sequences
-    sequences = read_fasta(args.fasta)
+    # read the sequences from fasta file
+    sequences = read_fasta_file(args.fasta)
     
     if len(sequences) == 0:
+        print("Error: no sequences found", file=sys.stderr)
         sys.exit(1)
     
-    # 3. Filter sequences with 'N'
-    sequences = filter_sequences_with_n(sequences)
+    # remove sequences with N
+    sequences = remove_sequences_with_N(sequences)
     
     if len(sequences) == 0:
+        print("Error: no valid sequences after filtering", file=sys.stderr)
         sys.exit(1)
     
-    # 4. Train the Markov model
-    transition_probs, context_counts = train_markov_model(sequences, args.order)
+    # train the model
+    model_probs, context_counts = build_markov_model(sequences, args.order)
     
-    # 5. Score each sequence and print ONLY the results
+    # score each sequence and print
     for header, seq in sequences:
-        score = score_sequence(seq, args.order, transition_probs, context_counts)
-        # This is the ONLY print statement that should remain
-        print(f"{score:.6f}")
+        s = score_seq(seq, args.order, model_probs, context_counts)
+        print(f"{s:.6f}")
+
 
 if __name__ == "__main__":
     main()
-
