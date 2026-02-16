@@ -126,9 +126,9 @@ def filter_sequences_with_n(sequences):
         else:
             removed_count += 1
     
-    if removed_count > 0:
-        print(f"# Removed {removed_count} sequence(s) containing 'N' characters", 
-              file=sys.stderr)
+   # if removed_count > 0:
+   #    print(f"# Removed {removed_count} sequence(s) containing 'N' characters", 
+   #          file=sys.stderr)
     
     return filtered
 
@@ -280,67 +280,40 @@ def score_sequence(sequence, order, transition_probs, context_counts):
     return log_likelihood
 
 
+
 def main():
     """
     Main function: orchestrates the entire workflow.
-    
-    Workflow:
-    1. Parse command-line arguments
-    2. Read sequences from FASTA file
-    3. Filter sequences with 'N' characters
-    4. Train Markov model on all sequences
-    5. Score each sequence and print results
     """
-    # Step 1: Parse arguments
+    # 1. Parse arguments
     args = parse_arguments()
     
     # Validate order
     if args.order < 0:
-        print(f"Error: Order must be non-negative (got {args.order})", file=sys.stderr)
+        # Keeping error prints is usually okay, but let's exit cleanly
         sys.exit(1)
     
-    # Print configuration (to stderr so it doesn't interfere with scores)
-    print(f"# Configuration:", file=sys.stderr)
-    print(f"#   FASTA file: {args.fasta}", file=sys.stderr)
-    print(f"#   Model order: {args.order}", file=sys.stderr)
-    print(f"#", file=sys.stderr)
-    
-    # Step 2: Read sequences
-    print(f"# Reading sequences from {args.fasta}...", file=sys.stderr)
+    # 2. Read sequences
     sequences = read_fasta(args.fasta)
-    print(f"# Loaded {len(sequences)} sequence(s)", file=sys.stderr)
     
     if len(sequences) == 0:
-        print("Error: No sequences found in FASTA file", file=sys.stderr)
         sys.exit(1)
     
-    # Step 3: Filter sequences with 'N'
+    # 3. Filter sequences with 'N'
     sequences = filter_sequences_with_n(sequences)
-    print(f"# Using {len(sequences)} sequence(s) for training", file=sys.stderr)
     
     if len(sequences) == 0:
-        print("Error: No valid sequences after filtering", file=sys.stderr)
         sys.exit(1)
     
-    # Step 4: Train the Markov model
-    print(f"# Training Markov model of order {args.order}...", file=sys.stderr)
+    # 4. Train the Markov model
     transition_probs, context_counts = train_markov_model(sequences, args.order)
-    print(f"# Model trained with {len(transition_probs)} transition(s)", file=sys.stderr)
-    print(f"#", file=sys.stderr)
     
-    # Step 5: Score each sequence and print results
-    print(f"# Scoring sequences (one score per line):", file=sys.stderr)
-    print(f"#", file=sys.stderr)
-    
+    # 5. Score each sequence and print ONLY the results
     for header, seq in sequences:
         score = score_sequence(seq, args.order, transition_probs, context_counts)
-        # Print score to stdout (one per line as requested)
+        # This is the ONLY print statement that should remain
         print(f"{score:.6f}")
-    
-    # Print summary to stderr
-    print(f"#", file=sys.stderr)
-    print(f"# Done! Printed {len(sequences)} score(s)", file=sys.stderr)
-
 
 if __name__ == "__main__":
     main()
+
