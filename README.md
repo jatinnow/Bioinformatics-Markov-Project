@@ -25,7 +25,7 @@ To execute the cross-validation for a specific order (e.g., Order 3):
 ```bash
 python3 MarkovCrossValidation.py --file data/chr4_200bp_bins.tsv --genome data/hg38.fa --tf CTCF --order 3 --k 5
 
-### Running the Simpler Version
+Running the Simpler Version
 To generate log-likelihood scores for a specific FASTA file:
 ```bash
 python3 simplerVersion.py --fasta data/hg38.fa --order 3
