@@ -1,0 +1,54 @@
+1
+
+github.com/jatinnow/Bioinformatics-Markov-Project
+
+2 
+Order	Average AUROC
+
+Order 0: 0.7223
+
+Order 1: 0.7291
+
+Order 2: 0.7321
+
+Order 3: 0.7348
+
+Order 4: 0.7374
+
+Order 5: 0.7407
+
+Order 6: 0.7450
+
+Order 7: 0.7493
+
+Order 8: 0.7494
+
+Order 9: 0.7403
+
+Order 10: 0.7301
+
+Highest Area Result:
+The area is highest for Order 8 with an AUROC of 0.7494.
+
+
+3
+Order	Average AUPRC 
+Order 0	: 0.0311 
+Order 1	: 0.0342 
+Order 2	: 0.0353 
+Order 3	: 0.0357 
+Order 4	: 0.0360 
+Order 5	: 0.0365 
+Order 6	: 0.0372 
+Order 7	: 0.0385 
+Order 8	: 0.0399 
+Order 9	: 0.0401 
+Order 10	: 0.0393 
+
+
+Highest Area Result:
+The area is highest for Order 8 with an AUPRC of 0.0399
+
+*The low AUPRC values are expected due to the high class imbalance (few binding sites vs. millions of non-binding background windows) and the simplicity of a sequence-only Markov model compared to some modern complex deep learning approaches
+
+
