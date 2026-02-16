@@ -12,7 +12,7 @@ This project implements a Markov Model of varying orders (0-10) to predict CTCF 
 * `MarkovCrossValidation.py`: Main script for training and k-fold evaluation.
 * `simplerVersion.py`: Script for generating sequence log-likelihood scores.
 * `data/`: Contains `chr4_200bp_bins.tsv`. (Note: hg38.fa is excluded due to size).
-* `results/`: Contains AUROC and AUPRC plots for Order 3.
+  
 
 ## 4. Genomic Data Setup
 The human genome fasta file (`hg38.fa`) is too large for GitHub. To run the code:
